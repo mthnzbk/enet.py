@@ -1,0 +1,113 @@
+name: notify-release
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to build and attach binaries to (e.g. v2.7.1). Leave empty to only build and test.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  notify:
+    name: Show a changelog
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sarisia/actions-status-discord@v1
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          description:  "**${{ github.repository }}: [${{ github.event.release.name }}](${{ github.event.release.html_url }})**\n\n**Changelog:**\n${{ github.event.release.body }}"
+          nodetail: true
+          nofail: true
+          color: "0x9999ff"
+
+  # CMake names the shared library "enet" (OUTPUT_NAME), so it comes out as
+  # enet.dll (with its import library enet.lib), libenet.so and libenet.dylib.
+  # Tags older than 2.7.2 lack test/shared.c and the MSVC naming fix, so their
+  # enet.lib is the static library: the link test and enet.lib upload skip them.
+  build-win:
+    name: Test Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Run cmake generator
+        run: cmake -B build -DENET_TEST=1 -DENET_SHARED=1
+      - name: Run Windows build
+        run: cmake --build build --config Release
+      - name: Run unit tests
+        run: cd build ; .\Release\enet_test.exe
+      - name: Link against the shared library through its import library
+        if: hashFiles('test/shared.c') != ''
+        run: cd build ; .\Release\enet_test_shared.exe
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        if: github.event_name == 'release' || inputs.tag != ''
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: build/Release/enet.dll
+          fail_on_unmatched_files: true
+      - name: Release import library
+        uses: softprops/action-gh-release@v3
+        if: (github.event_name == 'release' || inputs.tag != '') && hashFiles('test/shared.c') != ''
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: build/Release/enet.lib
+          fail_on_unmatched_files: true
+
+  build-lin:
+    name: Test Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Run cmake generator
+        run: cmake -B build -DENET_TEST=1 -DENET_SHARED=1 -DCMAKE_BUILD_TYPE=Release
+      - name: Run build on Linux
+        run: cmake --build build
+      - name: Test build on Linux
+        run: build/enet_test
+      - name: Link against the shared library
+        if: hashFiles('test/shared.c') != ''
+        run: build/enet_test_shared
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        if: github.event_name == 'release' || inputs.tag != ''
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: build/libenet.so
+          fail_on_unmatched_files: true
+
+  build-mac:
+    name: Test macOS
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Run cmake generator
+        run: cmake -B build -DENET_TEST=1 -DENET_SHARED=1 -DCMAKE_BUILD_TYPE=Release
+      - name: Run build on macOS
+        run: cmake --build build
+      - name: Test build on macOS
+        run: build/enet_test
+      - name: Link against the shared library
+        if: hashFiles('test/shared.c') != ''
+        run: build/enet_test_shared
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        if: github.event_name == 'release' || inputs.tag != ''
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: build/libenet.dylib
+          fail_on_unmatched_files: true
