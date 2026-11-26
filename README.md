@@ -24,11 +24,11 @@ Bu bağlayıcı, `zpl-c/enet` çatalının sunduğu yenilikleri (tam entegre IPv
 Projeyi doğrudan çalışma dizininize dahil edebilir (`import enet`) veya pip ile kurabilirsiniz:
 
 ```bash
+# PyPI üzerinden kurulum
+pip install zpl-enet
+
 # Geliştirici / düzenlenebilir modda kurulum
 pip install -e .
-
-# Standart paket kurulumu
-pip install .
 ```
 
 ---
