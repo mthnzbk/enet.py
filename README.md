@@ -25,7 +25,7 @@ Projeyi doğrudan çalışma dizininize dahil edebilir (`import enet`) veya pip 
 
 ```bash
 # PyPI üzerinden kurulum
-pip install zpl-enet
+pip install enet2
 
 # Geliştirici / düzenlenebilir modda kurulum
 pip install -e .
